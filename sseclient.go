@@ -33,6 +33,7 @@ const (
 var (
 	eventEvent = []byte("event")
 	eventData  = []byte("data")
+	delim      = []byte{':', ' '}
 )
 
 // Notify does a request and notify to given channel when receive event
@@ -56,16 +57,13 @@ func Notify(client *http.Client, req *http.Request, ch chan *Event) (CancelFunc,
 		return emptyFunc, err
 	}
 	cancel := func() {
-		close(ch)
 		resp.Body.Close()
+		close(ch)
 	}
 	go func() {
-		defer cancel()
 		reader := bufio.NewReader(resp.Body)
-		delim := []byte{':', ' '}
 		var event *Event
-
-		for !resp.Close {
+		for {
 			bs, err := reader.ReadBytes('\n')
 			if err != nil {
 				return
@@ -77,11 +75,10 @@ func Notify(client *http.Client, req *http.Request, ch chan *Event) (CancelFunc,
 			if len(rec) < 2 {
 				continue
 			}
-
 			if bytes.Equal(rec[0], eventEvent) {
 				event = &Event{}
 				event.Type = string(bytes.TrimSpace(rec[1]))
-			} else if bytes.Equal(rec[1], eventData) {
+			} else if bytes.Equal(rec[0], eventData) {
 				if event == nil {
 					continue
 				}
